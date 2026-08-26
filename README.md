@@ -128,6 +128,27 @@ The responder analysis writes:
 - `outputs/statistical_results.csv`
 - `outputs/responder_vs_nonresponder_boxplots.png`
 
+## Baseline subset analysis
+
+The baseline subset includes melanoma PBMC samples collected at day 0 from subjects treated with miraclib.
+
+| Summary | Group | Count |
+|---|---|---:|
+| Samples by project | prj1 | 384 |
+| Samples by project | prj2 | 0 |
+| Samples by project | prj3 | 272 |
+| Samples by project | **Total** | **656** |
+| Subjects by response | Responder | 331 |
+| Subjects by response | Non-responder | 325 |
+| Subjects by sex | Female | 312 |
+| Subjects by sex | Male | 344 |
+
+The analysis writes these results to `outputs/baseline_subset_summary.csv`.
+
+## Additional B-cell calculation
+
+For melanoma male responders at day 0, including all sample and treatment types, the average B-cell count is **10206.15**.
+
 ## References
 
 Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: A practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society: Series B, 57*(1), 289-300. https://doi.org/10.1111/j.2517-6161.1995.tb02031.x

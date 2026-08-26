@@ -18,6 +18,7 @@ OUTPUT_DIR = ROOT / "outputs"
 FREQUENCY_OUTPUT_PATH = OUTPUT_DIR / "cell_frequencies.csv"
 STATISTICS_OUTPUT_PATH = OUTPUT_DIR / "statistical_results.csv"
 BOXPLOT_OUTPUT_PATH = OUTPUT_DIR / "responder_vs_nonresponder_boxplots.png"
+SUBSET_OUTPUT_PATH = OUTPUT_DIR / "baseline_subset_summary.csv"
 
 POPULATIONS = (
     "b_cell",
@@ -116,6 +117,83 @@ def select_responder_cohort(frequencies):
         "percentage",
     ]
     return cohort[columns]
+
+
+def read_baseline_subset(database_path):
+    query = """
+        SELECT
+            projects.project_name AS project,
+            subjects.source_subject_id AS subject,
+            subjects.response,
+            subjects.sex,
+            samples.source_sample_id AS sample
+        FROM samples
+        JOIN subjects
+            ON subjects.subject_id = samples.subject_id
+        JOIN projects
+            ON projects.project_id = subjects.project_id
+        WHERE subjects.condition = 'melanoma'
+            AND subjects.treatment = 'miraclib'
+            AND samples.sample_type = 'PBMC'
+            AND samples.time_from_treatment_start = 0
+        ORDER BY projects.project_name, subjects.source_subject_id
+    """
+
+    with sqlite3.connect(database_path) as connection:
+        subset = pd.read_sql_query(query, connection)
+
+    if subset.empty:
+        raise ValueError("No samples matched the baseline subset filters")
+
+    return subset
+
+
+def summarize_baseline_subset(subset, projects):
+    samples_by_project = subset.groupby("project").size().reindex(
+        sorted(projects), fill_value=0
+    )
+    subjects = subset[["project", "subject", "response", "sex"]].drop_duplicates()
+    subjects_by_response = subjects.groupby("response").size()
+    subjects_by_sex = subjects.groupby("sex").size()
+
+    rows = []
+    for value, count in samples_by_project.items():
+        rows.append({"summary": "samples_by_project", "group": value, "count": count})
+    rows.append(
+        {"summary": "samples_by_project", "group": "total", "count": len(subset)}
+    )
+    for value, count in subjects_by_response.items():
+        rows.append({"summary": "subjects_by_response", "group": value, "count": count})
+    for value, count in subjects_by_sex.items():
+        rows.append({"summary": "subjects_by_sex", "group": value, "count": count})
+
+    return pd.DataFrame(rows)
+
+
+def calculate_average_b_cells(database_path):
+    query = """
+        SELECT AVG(cell_counts.cell_count)
+        FROM cell_counts
+        JOIN cell_populations
+            ON cell_populations.population_id = cell_counts.population_id
+        JOIN samples
+            ON samples.sample_id = cell_counts.sample_id
+        JOIN subjects
+            ON subjects.subject_id = samples.subject_id
+        WHERE subjects.condition = 'melanoma'
+            AND subjects.sex = 'M'
+            AND subjects.response = 'yes'
+            AND samples.time_from_treatment_start = 0
+            AND cell_populations.population_name = 'b_cell'
+    """
+
+    with sqlite3.connect(database_path) as connection:
+        average = connection.execute(query).fetchone()[0]
+
+    if average is None:
+        raise ValueError("No samples matched the B-cell average filters")
+
+    return average
 
 
 def summarize_subjects(cohort):
@@ -328,6 +406,24 @@ def main():
         print(f"\nSignificant populations after adjustment: {names}")
     else:
         print("\nNo populations were significant after adjustment.")
+
+    baseline_subset = read_baseline_subset(DATABASE_PATH)
+    subset_summary = summarize_baseline_subset(
+        baseline_subset,
+        cell_counts["project"].unique(),
+    )
+    subset_summary.to_csv(SUBSET_OUTPUT_PATH, index=False)
+
+    print("\nBaseline subset analysis:\n")
+    print(f"Samples: {len(baseline_subset):,}\n")
+    print(subset_summary.to_string(index=False))
+    print(f"\nSaved results to {SUBSET_OUTPUT_PATH.relative_to(ROOT)}")
+
+    average_b_cells = calculate_average_b_cells(DATABASE_PATH)
+    print(
+        "\nAverage B-cell count for melanoma male responders at day 0 across "
+        f"all sample and treatment types: {average_b_cells:.2f}"
+    )
 
 
 if __name__ == "__main__":
