@@ -33,8 +33,6 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Additional analysis functionality will be added incrementally.
-
 ## Database design
 
 The SQLite database is organized into five related tables:
@@ -88,3 +86,16 @@ python load_data.py
 
 This creates `teiko.db` in the repository root and reloads all data from
 `cell-count.csv` each time it runs.
+
+## Generate the cell frequency summary
+
+After loading the database, run:
+
+```bash
+python analysis.py
+```
+
+The script displays a short preview and writes the complete summary to
+`outputs/cell_frequencies.csv`. The output contains one row per sample and cell
+population with the required columns: `sample`, `total_count`, `population`,
+`count`, and `percentage`.
