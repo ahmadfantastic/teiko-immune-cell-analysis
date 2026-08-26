@@ -33,4 +33,58 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Additional analysis and database functionality will be added incrementally.
+Additional analysis functionality will be added incrementally.
+
+## Database design
+
+The SQLite database is organized into five related tables:
+
+- **Projects** stores each research project once.
+- **Subjects** stores participant information such as condition, age, sex,
+  treatment, and response.
+- **Samples** stores each collected sample, including its type and collection
+  time relative to the start of treatment.
+- **Cell populations** stores the names of the immune-cell types being measured.
+- **Cell counts** stores the count of each cell population in each sample.
+
+### Table relationships
+
+- One project can contain many subjects, while each subject belongs to one
+  project.
+- One subject can have many samples, while each sample belongs to one subject.
+- One sample can contain measurements for many cell populations, and one cell
+  population can be measured in many samples.
+- The `cell_counts` table connects samples and cell populations. Together, its
+  sample and population identifiers uniquely identify a measurement.
+
+In compact form:
+
+`projects -> subjects -> samples -> cell_counts <- cell_populations`
+
+### Design rationale
+
+- Subject information is stored once instead of being repeated for every
+  sample.
+- Although the CSV contains five fixed population columns, the database stores
+  populations as rows rather than separate count columns. This matches the
+  required summary format and allows new populations to be added without
+  changing the schema.
+- Foreign keys, uniqueness rules, and validation constraints protect data
+  integrity.
+- Indexes support the cohort filters used by the analysis.
+- Totals and percentages are calculated from the original counts rather than
+  stored, preventing inconsistent derived values.
+- The design can support additional projects, subjects, samples, and cell
+  populations, and can later be migrated to a larger database such as
+  PostgreSQL.
+
+## Load the database
+
+Run the loader from the repository root:
+
+```bash
+python load_data.py
+```
+
+This creates `teiko.db` in the repository root and reloads all data from
+`cell-count.csv` each time it runs.
