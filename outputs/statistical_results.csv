@@ -1,0 +1,6 @@
+population,responder_subjects,nonresponder_subjects,responder_mean_percentage,nonresponder_mean_percentage,mean_difference_percentage_points,mean_difference_ci_lower,mean_difference_ci_upper,welch_t_statistic,welch_degrees_of_freedom,p_value,adjusted_p_value,hedges_g,significant
+b_cell,331,325,9.797553,9.996320,-0.198767,-0.478038,0.080504,-1.397563,653.842932,0.162718,0.274043,-0.109008,False
+cd8_t_cell,331,325,24.881932,24.943924,-0.061993,-0.471885,0.347900,-0.296988,641.747882,0.766572,0.766572,-0.023132,False
+cd4_t_cell,331,325,30.537808,29.902262,0.635547,0.197609,1.073484,2.849632,652.875713,0.004515,0.022575,0.222151,True
+nk_cell,331,325,14.840944,15.073166,-0.232222,-0.559828,0.095384,-1.391921,645.599970,0.164426,0.274043,-0.108439,False
+monocyte,331,325,19.941763,20.084328,-0.142565,-0.514884,0.229754,-0.751925,634.555972,0.452375,0.565469,-0.058547,False
