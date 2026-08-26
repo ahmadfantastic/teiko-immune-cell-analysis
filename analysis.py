@@ -12,15 +12,15 @@ from scipy.stats import t, ttest_ind
 from statsmodels.stats.multitest import multipletests
 
 
-ROOT = Path(__file__).resolve().parent
-DATABASE_PATH = ROOT / "teiko.db"
-OUTPUT_DIR = ROOT / "outputs"
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATABASE_PATH = PROJECT_ROOT / "teiko.db"
+OUTPUT_DIR = PROJECT_ROOT / "outputs"
 FREQUENCY_OUTPUT_PATH = OUTPUT_DIR / "cell_frequencies.csv"
 STATISTICS_OUTPUT_PATH = OUTPUT_DIR / "statistical_results.csv"
 BOXPLOT_OUTPUT_PATH = OUTPUT_DIR / "responder_vs_nonresponder_boxplots.png"
 SUBSET_OUTPUT_PATH = OUTPUT_DIR / "baseline_subset_summary.csv"
 
-POPULATIONS = (
+CELL_POPULATIONS = (
     "b_cell",
     "cd8_t_cell",
     "cd4_t_cell",
@@ -50,8 +50,10 @@ def read_cell_counts(database_path):
             subjects.condition,
             subjects.treatment,
             subjects.response,
+            subjects.sex,
             samples.source_sample_id AS sample,
             samples.sample_type,
+            samples.time_from_treatment_start,
             cell_populations.population_name AS population,
             cell_counts.cell_count AS count
         FROM cell_counts
@@ -78,7 +80,7 @@ def calculate_frequencies(cell_counts):
         raise ValueError("A sample contains duplicate population measurements")
 
     populations_by_sample = cell_counts.groupby("sample")["population"].agg(set)
-    expected_populations = set(POPULATIONS)
+    expected_populations = set(CELL_POPULATIONS)
     if not populations_by_sample.map(
         lambda values: values == expected_populations
     ).all():
@@ -97,15 +99,91 @@ def calculate_frequencies(cell_counts):
     return frequencies
 
 
-def select_responder_cohort(frequencies):
-    cohort = frequencies[
-        frequencies["condition"].eq("melanoma")
-        & frequencies["treatment"].eq("miraclib")
-        & frequencies["sample_type"].eq("PBMC")
-        & frequencies["response"].isin(["yes", "no"])
+def filter_frequencies(
+    frequencies,
+    *,
+    project=None,
+    condition=None,
+    treatment=None,
+    sample_type=None,
+    time_point=None,
+    response=None,
+    sex=None,
+):
+    filtered = frequencies
+    filters = {
+        "project": project,
+        "condition": condition,
+        "treatment": treatment,
+        "sample_type": sample_type,
+        "time_from_treatment_start": time_point,
+        "response": response,
+        "sex": sex,
+    }
+
+    for column, value in filters.items():
+        if value is not None:
+            filtered = filtered[filtered[column].eq(value)]
+
+    return filtered.copy()
+
+
+def _build_sample_filters(
+    *,
+    project,
+    condition,
+    treatment,
+    sample_type,
+    time_point,
+    response,
+    sex,
+):
+    return {
+        "projects.project_name": project,
+        "subjects.condition": condition,
+        "subjects.treatment": treatment,
+        "samples.sample_type": sample_type,
+        "samples.time_from_treatment_start": time_point,
+        "subjects.response": response,
+        "subjects.sex": sex,
+    }
+
+
+def _build_where_clause(filters):
+    clauses = []
+    parameters = []
+    for column, value in filters.items():
+        if value is not None:
+            clauses.append(f"{column} = ?")
+            parameters.append(value)
+
+    return (" AND ".join(clauses) if clauses else "1 = 1"), parameters
+
+
+def select_response_samples(
+    frequencies,
+    *,
+    project=None,
+    condition="melanoma",
+    treatment="miraclib",
+    sample_type="PBMC",
+    time_point=None,
+    sex=None,
+):
+    response_samples = filter_frequencies(
+        frequencies,
+        project=project,
+        condition=condition,
+        treatment=treatment,
+        sample_type=sample_type,
+        time_point=time_point,
+        sex=sex,
+    )
+    response_samples = response_samples[
+        response_samples["response"].isin(["yes", "no"])
     ].copy()
 
-    if cohort.empty:
+    if response_samples.empty:
         raise ValueError("No samples matched the responder-analysis filters")
 
     columns = [
@@ -113,34 +191,56 @@ def select_responder_cohort(frequencies):
         "subject",
         "response",
         "sample",
+        "time_from_treatment_start",
         "population",
         "percentage",
     ]
-    return cohort[columns]
+    return response_samples[columns]
 
 
-def read_baseline_subset(database_path):
-    query = """
+def read_sample_subset(
+    database_path,
+    *,
+    project=None,
+    condition="melanoma",
+    treatment="miraclib",
+    sample_type="PBMC",
+    time_point=0,
+    response=None,
+    sex=None,
+):
+    filters = _build_sample_filters(
+        project=project,
+        condition=condition,
+        treatment=treatment,
+        sample_type=sample_type,
+        time_point=time_point,
+        response=response,
+        sex=sex,
+    )
+    where_clause, parameters = _build_where_clause(filters)
+    query = f"""
         SELECT
             projects.project_name AS project,
             subjects.source_subject_id AS subject,
+            subjects.condition,
+            subjects.treatment,
             subjects.response,
             subjects.sex,
-            samples.source_sample_id AS sample
+            samples.source_sample_id AS sample,
+            samples.sample_type,
+            samples.time_from_treatment_start
         FROM samples
         JOIN subjects
             ON subjects.subject_id = samples.subject_id
         JOIN projects
             ON projects.project_id = subjects.project_id
-        WHERE subjects.condition = 'melanoma'
-            AND subjects.treatment = 'miraclib'
-            AND samples.sample_type = 'PBMC'
-            AND samples.time_from_treatment_start = 0
+        WHERE {where_clause}
         ORDER BY projects.project_name, subjects.source_subject_id
     """
 
     with sqlite3.connect(database_path) as connection:
-        subset = pd.read_sql_query(query, connection)
+        subset = pd.read_sql_query(query, connection, params=parameters)
 
     if subset.empty:
         raise ValueError("No samples matched the baseline subset filters")
@@ -148,31 +248,55 @@ def read_baseline_subset(database_path):
     return subset
 
 
-def summarize_baseline_subset(subset, projects):
+def summarize_sample_subset(subset, projects):
     samples_by_project = subset.groupby("project").size().reindex(
         sorted(projects), fill_value=0
     )
     subjects = subset[["project", "subject", "response", "sex"]].drop_duplicates()
-    subjects_by_response = subjects.groupby("response").size()
-    subjects_by_sex = subjects.groupby("sex").size()
+    subjects_by_response = subjects.groupby("response").size().reindex(
+        ["no", "yes"], fill_value=0
+    )
+    subjects_by_sex = subjects.groupby("sex").size().reindex(
+        ["F", "M"], fill_value=0
+    )
 
     rows = []
     for value, count in samples_by_project.items():
         rows.append({"summary": "samples_by_project", "group": value, "count": count})
-    rows.append(
-        {"summary": "samples_by_project", "group": "total", "count": len(subset)}
-    )
     for value, count in subjects_by_response.items():
         rows.append({"summary": "subjects_by_response", "group": value, "count": count})
     for value, count in subjects_by_sex.items():
         rows.append({"summary": "subjects_by_sex", "group": value, "count": count})
+    rows.append({"summary": "total_samples", "group": "all", "count": len(subset)})
 
     return pd.DataFrame(rows)
 
 
-def calculate_average_b_cells(database_path):
-    query = """
-        SELECT AVG(cell_counts.cell_count)
+def calculate_average_cell_counts(
+    database_path,
+    *,
+    project=None,
+    condition="melanoma",
+    treatment=None,
+    sample_type=None,
+    time_point=0,
+    response="yes",
+    sex="M",
+):
+    filters = _build_sample_filters(
+        project=project,
+        condition=condition,
+        treatment=treatment,
+        sample_type=sample_type,
+        time_point=time_point,
+        response=response,
+        sex=sex,
+    )
+    where_clause, parameters = _build_where_clause(filters)
+    query = f"""
+        SELECT
+            cell_populations.population_name,
+            AVG(cell_counts.cell_count)
         FROM cell_counts
         JOIN cell_populations
             ON cell_populations.population_id = cell_counts.population_id
@@ -180,26 +304,27 @@ def calculate_average_b_cells(database_path):
             ON samples.sample_id = cell_counts.sample_id
         JOIN subjects
             ON subjects.subject_id = samples.subject_id
-        WHERE subjects.condition = 'melanoma'
-            AND subjects.sex = 'M'
-            AND subjects.response = 'yes'
-            AND samples.time_from_treatment_start = 0
-            AND cell_populations.population_name = 'b_cell'
+        JOIN projects
+            ON projects.project_id = subjects.project_id
+        WHERE {where_clause}
+        GROUP BY cell_populations.population_name
     """
 
     with sqlite3.connect(database_path) as connection:
-        average = connection.execute(query).fetchone()[0]
+        rows = connection.execute(query, parameters).fetchall()
 
-    if average is None:
-        raise ValueError("No samples matched the B-cell average filters")
+    if not rows:
+        raise ValueError("No samples matched the average cell-count filters")
 
-    return average
+    return {population: average for population, average in rows}
 
 
-def summarize_subjects(cohort):
+def summarize_subjects(response_samples):
     # Average repeated samples so each subject contributes once per population.
     return (
-        cohort.groupby(["project", "subject", "response", "population"], as_index=False)
+        response_samples.groupby(
+            ["project", "subject", "response", "population"], as_index=False
+        )
         .agg(mean_percentage=("percentage", "mean"))
         .sort_values(["population", "response", "project", "subject"])
     )
@@ -226,7 +351,7 @@ def calculate_hedges_g(responders, nonresponders):
 def compare_response_groups(subject_summary):
     results = []
 
-    for population in POPULATIONS:
+    for population in CELL_POPULATIONS:
         population_data = subject_summary[subject_summary["population"].eq(population)]
         responders = population_data.loc[
             population_data["response"].eq("yes"), "mean_percentage"
@@ -234,6 +359,11 @@ def compare_response_groups(subject_summary):
         nonresponders = population_data.loc[
             population_data["response"].eq("no"), "mean_percentage"
         ]
+
+        if len(responders) < 2 or len(nonresponders) < 2:
+            raise ValueError(
+                "Each response group needs at least two subjects per population"
+            )
 
         test = ttest_ind(
             responders,
@@ -305,7 +435,7 @@ def create_boxplots(subject_summary, output_path):
     figure, axes = plt.subplots(2, 3, figsize=(14, 8), sharey=True)
     axes = axes.flatten()
 
-    for axis, population in zip(axes, POPULATIONS):
+    for axis, population in zip(axes, CELL_POPULATIONS):
         population_data = subject_summary[subject_summary["population"].eq(population)]
         nonresponders = population_data.loc[
             population_data["response"].eq("no"), "mean_percentage"
@@ -361,10 +491,10 @@ def main():
     print(preview.to_string(index=False))
     print(
         f"\nSaved {len(frequency_summary):,} rows to "
-        f"{FREQUENCY_OUTPUT_PATH.relative_to(ROOT)}"
+        f"{FREQUENCY_OUTPUT_PATH.relative_to(PROJECT_ROOT)}"
     )
 
-    responder_samples = select_responder_cohort(frequencies)
+    responder_samples = select_response_samples(frequencies)
     subject_summary = summarize_subjects(responder_samples)
     statistics = compare_response_groups(subject_summary)
 
@@ -407,8 +537,8 @@ def main():
     else:
         print("\nNo populations were significant after adjustment.")
 
-    baseline_subset = read_baseline_subset(DATABASE_PATH)
-    subset_summary = summarize_baseline_subset(
+    baseline_subset = read_sample_subset(DATABASE_PATH)
+    subset_summary = summarize_sample_subset(
         baseline_subset,
         cell_counts["project"].unique(),
     )
@@ -417,9 +547,9 @@ def main():
     print("\nBaseline subset analysis:\n")
     print(f"Samples: {len(baseline_subset):,}\n")
     print(subset_summary.to_string(index=False))
-    print(f"\nSaved results to {SUBSET_OUTPUT_PATH.relative_to(ROOT)}")
+    print(f"\nSaved results to {SUBSET_OUTPUT_PATH.relative_to(PROJECT_ROOT)}")
 
-    average_b_cells = calculate_average_b_cells(DATABASE_PATH)
+    average_b_cells = calculate_average_cell_counts(DATABASE_PATH)["b_cell"]
     print(
         "\nAverage B-cell count for melanoma male responders at day 0 across "
         f"all sample and treatment types: {average_b_cells:.2f}"

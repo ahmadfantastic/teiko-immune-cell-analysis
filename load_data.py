@@ -3,10 +3,10 @@ import sqlite3
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
-CSV_PATH = ROOT / "cell-count.csv"
-DATABASE_PATH = ROOT / "teiko.db"
-SCHEMA_PATH = ROOT / "schema.sql"
+PROJECT_ROOT = Path(__file__).resolve().parent
+CSV_PATH = PROJECT_ROOT / "cell-count.csv"
+DATABASE_PATH = PROJECT_ROOT / "teiko.db"
+SCHEMA_PATH = PROJECT_ROOT / "schema.sql"
 
 CELL_POPULATIONS = (
     "b_cell",
@@ -30,7 +30,7 @@ METADATA_COLUMNS = (
 )
 
 
-def parse_integer(value, column, row_number):
+def _parse_integer(value, column, row_number):
     try:
         return int(value)
     except ValueError as exc:
@@ -39,13 +39,13 @@ def parse_integer(value, column, row_number):
         ) from exc
 
 
-def load_rows(connection):
+def load_rows(connection, csv_path=CSV_PATH):
     project_ids = {}
     # Subject details repeat for each sample, so keep the first copy for checks.
     subject_records = {}
     sample_ids = set()
 
-    with CSV_PATH.open(newline="", encoding="utf-8-sig") as csv_file:
+    with csv_path.open(newline="", encoding="utf-8-sig") as csv_file:
         reader = csv.DictReader(csv_file)
         required_columns = set(METADATA_COLUMNS + CELL_POPULATIONS)
         missing_columns = required_columns.difference(reader.fieldnames or [])
@@ -75,7 +75,7 @@ def load_rows(connection):
             subject_key = (project_id, source_subject_id)
             subject_metadata = (
                 row["condition"].strip(),
-                parse_integer(row["age"], "age", row_number),
+                _parse_integer(row["age"], "age", row_number),
                 row["sex"].strip(),
                 row["treatment"].strip(),
                 # Empty responses are missing values, not empty strings.
@@ -128,7 +128,7 @@ def load_rows(connection):
                     subject_id,
                     source_sample_id,
                     row["sample_type"].strip(),
-                    parse_integer(
+                    _parse_integer(
                         row["time_from_treatment_start"],
                         "time_from_treatment_start",
                         row_number,
@@ -140,7 +140,7 @@ def load_rows(connection):
             counts = []
             # Convert the five CSV columns into one row per population.
             for population in CELL_POPULATIONS:
-                count = parse_integer(row[population], population, row_number)
+                count = _parse_integer(row[population], population, row_number)
                 counts.append((sample_id, population_ids[population], count))
 
             connection.executemany(
@@ -152,7 +152,7 @@ def load_rows(connection):
             )
 
 
-def table_counts(connection):
+def get_table_counts(connection):
     tables = (
         "projects",
         "subjects",
@@ -166,23 +166,30 @@ def table_counts(connection):
     }
 
 
-def main():
-    if not CSV_PATH.exists():
-        raise FileNotFoundError(f"Input file not found: {CSV_PATH}")
+def initialize_database(csv_path=CSV_PATH, database_path=DATABASE_PATH):
+    csv_path = Path(csv_path)
+    database_path = Path(database_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Input file not found: {csv_path}")
 
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
-    with sqlite3.connect(DATABASE_PATH) as connection:
+    with sqlite3.connect(database_path) as connection:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.executescript(schema)
-        load_rows(connection)
+        load_rows(connection, csv_path)
 
         # Catch broken relationships before reporting a successful load.
         foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()
         if foreign_key_errors:
             raise RuntimeError(f"Foreign key check failed: {foreign_key_errors}")
 
-        counts = table_counts(connection)
+        counts = get_table_counts(connection)
 
+    return counts
+
+
+def main():
+    counts = initialize_database()
     print(f"Created {DATABASE_PATH.name}")
     for table, count in counts.items():
         print(f"  {table}: {count:,}")

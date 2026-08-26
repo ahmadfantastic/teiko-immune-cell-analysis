@@ -1,0 +1,28 @@
+{
+  "name": "teiko-immune-cell-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" index.html package.json vite.config.ts",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" index.html package.json vite.config.ts",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "plotly.js": "4.0.0",
+    "plotly.js-dist-min": "4.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-plotly.js": "4.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.2",
+    "vite": "8.2.2"
+  }
+}

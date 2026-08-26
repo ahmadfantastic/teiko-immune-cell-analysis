@@ -50,14 +50,14 @@ CREATE TABLE cell_counts (
     FOREIGN KEY (population_id) REFERENCES cell_populations(population_id)
 );
 
--- These columns will be used often in cohort filters and table joins.
-CREATE INDEX idx_subjects_cohort
+-- These columns will be used often in analysis filters and table joins.
+CREATE INDEX idx_subjects_filters
     ON subjects(condition, treatment, response, sex);
 
 CREATE INDEX idx_subjects_project
     ON subjects(project_id);
 
-CREATE INDEX idx_samples_cohort
+CREATE INDEX idx_samples_filters
     ON samples(sample_type, time_from_treatment_start);
 
 CREATE INDEX idx_samples_subject
