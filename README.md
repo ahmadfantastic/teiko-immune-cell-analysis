@@ -2,6 +2,8 @@
 
 Exploring and analyzing immune cell count data with Python.
 
+**Dashboard link:** [https://teiko-immune-cell-analysis.onrender.com/](https://teiko-immune-cell-analysis.onrender.com/)
+
 ## Dataset
 
 The project currently uses `cell-count.csv`. Each row represents one biological sample and includes project, subject, condition, treatment, response, sample type, treatment time, and cell counts for five immune-cell populations.
@@ -169,6 +171,7 @@ For melanoma male responders at day 0, including all sample and treatment types,
 - **`dashboard/`:** Contains the React and TypeScript frontend for exploring the analysis results.
 - **`outputs/`:** Contains the generated summary tables, statistical results, and boxplot.
 - **`Makefile`:** Provides the required commands for installing dependencies, running the pipeline, and starting the dashboard.
+- **`render.yaml`:** Configures the dashboard for deployment and hosting on Render using the project's Make commands.
 
 This structure keeps data loading, analysis, API handling, and the user interface separate while allowing the command-line pipeline and dashboard to use the same calculations.
 

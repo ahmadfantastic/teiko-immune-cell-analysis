@@ -6,3 +6,4 @@ services:
     buildCommand: make setup && make pipeline
     startCommand: make dashboard
     healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
