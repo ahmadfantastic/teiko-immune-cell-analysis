@@ -35,15 +35,7 @@ make dashboard
 
 `make setup` installs the Python and dashboard dependencies, `make pipeline` creates the SQLite database and all analysis outputs, and `make dashboard` builds and starts the dashboard on port 8000.
 
-## Manual setup
-
-Create a virtual environment and install the Python dependencies:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
+In Codespaces, open the forwarded port 8000 when prompted. Press `Ctrl+C` in the terminal to stop the dashboard.
 
 ## Database design
 
@@ -181,7 +173,7 @@ This structure keeps data loading, analysis, API handling, and the user interfac
 - **Shared analysis logic:** The dashboard uses the same Python functions as the command-line analysis, which avoids maintaining two versions of the calculations.
 - **Flexible filters:** Users can change the project, condition, treatment, sample type, collection day, response, and sex without modifying the code or creating a separate query for each combination.
 - **Data-driven options:** Filter values are loaded from the database, allowing the dashboard to support additional projects, treatments, collection days, and cell populations.
-- **Summary table:** The required cell-frequency summary is displayed with pagination so users can review the complete results without loading all 52,500 rows at once.
+- **Summary table:** The required cell-frequency summary is displayed with pagination so users can review the complete results without displaying all 52,500 rows at once.
 - **Sample view:** I added a sample view so users can examine the cell counts and relative frequencies for one biological sample.
 - **Subject view:** I added a subject view so users can follow cell-frequency changes across collection days, with each day compared with the preceding day.
 - **Response analysis:** Users can run the responder comparison using the required defaults, average across collection days, or select one collection day.
