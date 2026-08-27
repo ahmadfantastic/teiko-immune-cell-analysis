@@ -189,94 +189,6 @@ export default function ResponseView({
           </section>
 
           <section className="response-grid">
-            <div className="panel chart-panel response-mean-chart">
-              <div className="panel-heading-row">
-                <div>
-                  <span className="eyebrow">Average Frequencies</span>
-                  <h2>Responders and Non-Responders</h2>
-                </div>
-                <span className="result-pill">
-                  {significant.length} Significant{" "}
-                  {significant.length === 1 ? "Population" : "Populations"}
-                </span>
-              </div>
-              <Plot
-                data={[
-                  {
-                    type: "bar",
-                    name: "Non-Responder",
-                    x: analysis.statistics.map((row) =>
-                      populationLabel(row.population),
-                    ),
-                    y: analysis.statistics.map(
-                      (row) => row.nonresponder_mean_percentage,
-                    ),
-                    marker: { color: CHART_SERIES_COLORS[0] },
-                    hovertemplate:
-                      "%{x}<br>%{y:.2f}%<extra>Non-Responder</extra>",
-                  },
-                  {
-                    type: "bar",
-                    name: "Responder",
-                    x: analysis.statistics.map((row) =>
-                      populationLabel(row.population),
-                    ),
-                    y: analysis.statistics.map(
-                      (row) => row.responder_mean_percentage,
-                    ),
-                    marker: { color: CHART_SERIES_COLORS[1] },
-                    hovertemplate: "%{x}<br>%{y:.2f}%<extra>Responder</extra>",
-                  },
-                ]}
-                layout={{
-                  ...CHART_LAYOUT,
-                  barmode: "group",
-                  autosize: true,
-                  height: 390,
-                  margin: { l: 58, r: 20, t: 25, b: 80 },
-                  legend: { orientation: "h", x: 0, y: 1.12 },
-                  yaxis: {
-                    title: { text: "Average Relative Frequency (%)" },
-                    rangemode: "tozero",
-                    gridcolor: CHART_GRID_COLOR,
-                  },
-                  xaxis: { tickangle: -18 },
-                }}
-                config={CHART_CONFIG}
-                useResizeHandler
-                className="responsive-chart"
-              />
-            </div>
-
-            <aside className="finding-card">
-              <span className="eyebrow">Significance Summary</span>
-              {significant.length > 0 ? (
-                <>
-                  <div className="significant-populations">
-                    {significant.map((row) => (
-                      <strong key={row.population}>
-                        {populationLabel(row.population)}
-                      </strong>
-                    ))}
-                  </div>
-                  <p>
-                    {significant.length === 1
-                      ? "One cell population has"
-                      : `${significant.length} cell populations have`}{" "}
-                    an adjusted p-value below 0.05.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <strong>None</strong>
-                  <p>
-                    No cell population has an adjusted p-value below 0.05 with
-                    the current filters.
-                  </p>
-                </>
-              )}
-            </aside>
-
             <div className="panel chart-panel response-boxplot">
               <div className="panel-heading-row">
                 <div>
@@ -330,6 +242,35 @@ export default function ResponseView({
                 className="responsive-chart"
               />
             </div>
+
+            <aside className="finding-card">
+              <span className="eyebrow">Significance Summary</span>
+              {significant.length > 0 ? (
+                <>
+                  <div className="significant-populations">
+                    {significant.map((row) => (
+                      <strong key={row.population}>
+                        {populationLabel(row.population)}
+                      </strong>
+                    ))}
+                  </div>
+                  <p>
+                    {significant.length === 1
+                      ? "One cell population has"
+                      : `${significant.length} cell populations have`}{" "}
+                    an adjusted p-value below 0.05.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>None</strong>
+                  <p>
+                    No cell population has an adjusted p-value below 0.05 with
+                    the current filters.
+                  </p>
+                </>
+              )}
+            </aside>
 
             <div className="panel table-panel statistics-table">
               <div className="panel-heading-row">

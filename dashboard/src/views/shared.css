@@ -137,7 +137,7 @@
   gap: 1.0625rem;
 }
 
-.response-mean-chart {
+.response-boxplot {
   min-width: 0;
 }
 
@@ -180,7 +180,6 @@
   line-height: 1.6;
 }
 
-.response-boxplot,
 .statistics-table {
   grid-column: 1 / -1;
 }
@@ -523,7 +522,6 @@
     grid-template-columns: 1fr;
   }
 
-  .response-boxplot,
   .statistics-table {
     grid-column: auto;
   }
